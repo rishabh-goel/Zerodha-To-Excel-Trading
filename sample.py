@@ -1,8 +1,8 @@
 import json
 from kiteconnect import KiteConnect, KiteTicker
 import os
-import xlwings as xw
 import pythoncom
+import xlwings as xw
 import re
 from openpyxl import load_workbook, Workbook
 import pandas as pd
@@ -22,23 +22,6 @@ s = None
 data = None
 loop = None
 instrument_tokens = []
-# pythoncom.CoInitialize()
-
-# def helper_method(ticks):
-#     print("Inside helper function")
-#     filename = os.path.join(os.path.dirname(__file__), "Zerodha Instruments.xlsx")
-#     wb = xw.Book(filename)
-#     ws = wb.sheets['Watchlist']
-#     df = pd.read_excel(filename, sheet_name='Watchlist')
-#     instrument_tokens_list = df['instrument_token'].tolist()
-#     for tick in ticks:
-#         if tick['instrument_token'] in instrument_tokens_list:
-#             pos = instrument_tokens_list.index(tick['instrument_token'])
-#             cell = 'E' + str(pos+2)
-#             ws.range(cell).value = tick['last_price']
-#
-#     wb.save(filename)
-#     wb.close()
 
 
 def on_ticks(ws, ticks):
@@ -48,26 +31,27 @@ def on_ticks(ws, ticks):
 
 def on_connect(ws, response):
     # Callback on successful connect.
-    # Subscribe to a list of instrument_tokens (RELIANCE and ACC here).
+
     global instrument_tokens
     print("Inside onconnect")
     filename = os.path.join(os.path.dirname(__file__), "Zerodha Instruments.xlsx")
 
-    # OPENPYXL METHOD
-    wb = load_workbook(filename=filename)
-    sheet = wb.get_sheet_by_name("Watchlist")
-    # instrument_tokens = []
-    for row in range(2, sheet.max_row):
-        instrument_tokens.append(sheet.cell(row=row, column=1).value)
-
-    # instrument_tokens = [265]
+    pythoncom.CoInitialize()
+    app = xw.App(visible=False)
+    wb = app.books.open(filename)
+    sheet = wb.sheets['Watchlist']
+    df = pd.read_excel(filename, sheet_name="Watchlist")
+    print("DF length: {}".format(len(df)))
+    for row in range(2, len(df)+2):
+        instrument_tokens.append(int(sheet.range('A'+str(row)).value))
 
     ws.subscribe(instrument_tokens)
 
     ws.set_mode(ws.MODE_LTP, instrument_tokens)
 
     wb.save(filename)
-    wb.close()
+    # wb.close()
+    app.quit()
 
 
 def on_close(ws, code, reason):
@@ -81,7 +65,6 @@ def get_instruments():
     global u
     filename = os.path.join(os.path.dirname(__file__), 'Zerodha Instruments.xlsx')
     instruments = u.instruments()
-    # print(instruments)
     ordered_list = ["instrument_token", "exchange_token", "tradingsymbol", "name", "last_price", "expiry", "strike",
                     "tick_size",
                     "lot_size", "instrument_type", "segment", "exchange"]
@@ -237,7 +220,7 @@ def initial_setup():
             try:
                 u = KiteConnect(api_key=stored_api_key)
                 u.set_access_token(stored_access_token)
-
+                kws = KiteTicker(stored_api_key, stored_access_token)
                 u.profile()
                 logged_in = True
             except KiteException.TokenException as e:
@@ -292,9 +275,9 @@ def initial_setup():
             print("Data: {0}".format(data))
             write_key_to_settings('access_token', data['access_token'])
             u.set_access_token(data['access_token'])
-            kws = KiteTicker(stored_api_key, stored_access_token)
+            kws = KiteTicker(stored_api_key, data['access_token'])
 
-        kws = KiteTicker(stored_api_key, stored_access_token)
+        # kws = KiteTicker(stored_api_key, stored_access_token)
         # kws.on_ticks = on_ticks
         kws.on_connect = on_connect
         kws.on_close = on_close
@@ -309,9 +292,10 @@ def initial_setup():
             def helper_method(ticks):
                 print("Inside helper function")
                 filename = os.path.join(os.path.dirname(__file__), "Zerodha Instruments.xlsx")
-                # app = xw.App()
-                # wb = app.books.open(filename)
-                wb = xw.Book(filename)
+                pythoncom.CoInitialize()
+                app = xw.App(visible=False)
+                wb = app.books.open(filename)
+
                 ws = wb.sheets['Watchlist']
                 df = pd.read_excel(filename, sheet_name='Watchlist')
                 instrument_tokens_list = df['instrument_token'].tolist()
@@ -321,9 +305,60 @@ def initial_setup():
                         cell = 'E' + str(pos + 2)
                         ws.range(cell).value = tick['last_price']
 
+                        # Code to place an order
+                        # transact_type_cell = 'N' + str(pos + 2)
+                        # transact_type = ws.range(transact_type_cell).value
+                        # trading_symbol_cell = 'C' + str(pos + 2)
+                        # trading_symbol = ws.range(trading_symbol_cell).value
+                        # quantity_cell = 'O' + str(pos + 2)
+                        # quantity = ws.range(quantity_cell).value
+                        #
+                        # if transact_type == 'buy':
+                        #     if trading_symbol == 'NSE':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_NSE,
+                        #                       transaction_type=u.TRANSACTION_TYPE_BUY, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'BSE':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_BSE,
+                        #                       transaction_type=u.TRANSACTION_TYPE_BUY, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'MCX':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_MCX,
+                        #                       transaction_type=u.TRANSACTION_TYPE_BUY, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'NFO':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_NFO,
+                        #                       transaction_type=u.TRANSACTION_TYPE_BUY, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        # elif transact_type == 'sell':
+                        #     if trading_symbol == 'NSE':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_NSE,
+                        #                       transaction_type=u.TRANSACTION_TYPE_SELL, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'BSE':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_NSE,
+                        #                       transaction_type=u.TRANSACTION_TYPE_SELL, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'MCX':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_MCX,
+                        #                       transaction_type=u.TRANSACTION_TYPE_SELL, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        #     elif trading_symbol == 'NFO':
+                        #         u.place_order(tradingsymbol=trading_symbol, exchange=u.EXCHANGE_NFO,
+                        #                       transaction_type=u.TRANSACTION_TYPE_SELL, quantity=quantity,
+                        #                       order_type=u.ORDER_TYPE_MARKET, product=u.PRODUCT_NRML)
+                        #
+                        # ws.range(transact_type_cell).value = ""
+                        # ws.range(quantity_cell).value = ""
                 wb.save(filename)
-                wb.close()
-                # app.kill() 
+                app.quit()
 
             kws.on_ticks = on_ticks
     except Exception as error:
